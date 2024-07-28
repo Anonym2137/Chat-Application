@@ -12,6 +12,7 @@ const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
   const [message, setMessage] = useState('');
   const [selectedUser, setSelectedUser] = useState(null);
   const [isProfileVisible, setIsProfileVisible] = useState(false);
+  const [unreadCounts, setUnreadCounts] = useState({});
   const socket = useRef(null);
 
   useEffect(() => {
@@ -37,6 +38,10 @@ const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
         console.log('New message received:', msg);
         if (msg.chat_room_id === chatRoomId) {
           setMessages((prevMessages) => [...prevMessages, msg]);
+          markMessagesAsRead(chatRoomId);
+        }
+        else {
+          fetchUnreadCounts();
         }
       });
 
@@ -53,6 +58,7 @@ const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
           headers: { Authorization: `Bearer ${token}` },
         });
         setUsers(response.data);
+        fetchUnreadCounts();
       } catch (err) {
         console.error('Error fetching users:', err.response ? err.response.data : err.message);
       }
@@ -60,6 +66,22 @@ const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
 
     fetchUsers();
   }, [token]);
+
+  const fetchUnreadCounts = async () => {
+    try {
+      const response = await axios.get('http://localhost:3000/unread-messages', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const counts = response.data.reduce((acc, item) => {
+        acc[item.user_id] = item.unread_count;
+        return acc;
+      }, {});
+      setUnreadCounts(counts);
+    }
+    catch (err) {
+      console.error('Error fetching unread counts: ', err.response ? err.response.data : err.message);
+    }
+  };
 
   const startChat = async (user) => {
     setSelectedUser(user);
@@ -71,6 +93,7 @@ const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
       );
       setChatRoomId(response.data.chat_room_id);
       fetchMessages(response.data.chat_room_id);
+      markMessagesAsRead(response.data.chat_room_id);
       socket.current.emit('joinRoom', response.data.chat_room_id);
       console.log('Joined room:', response.data.chat_room_id);
     } catch (err) {
@@ -87,6 +110,21 @@ const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
       console.log('Fetched messages:', response.data);
     } catch (err) {
       console.error('Error fetching messages:', err.response ? err.response.data : err.message);
+    }
+  };
+
+  const markMessagesAsRead = async (chat_room_id) => {
+    try {
+      await axios.post('http://localhost:3000/mark-messages-read', {
+        chat_room_id,
+        user_id: currentUser.id
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchUnreadCounts();
+    }
+    catch (err) {
+      console.error('Error making messages as read: ', err.response ? err.response.data : err.message);
     }
   };
 
@@ -128,7 +166,11 @@ const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
             <h3>Direct Chats</h3>
             {users.map((user) => (
               <div key={user.id}>
-                <span onClick={() => startChat(user)}>{user.username}</span>
+                <span onClick={() => startChat(user)}>{user.username}
+                  {unreadCounts[user.id] && (
+                    <span className='unread-count'> ({unreadCounts[user.id]})</span>
+                  )}
+                </span>
               </div>
             ))}
           </div>

@@ -265,7 +265,7 @@ app.post('/send-message', authenticateJWT, (req, res) => {
   }
 
   const sentAt = new Date();
-  const query = 'INSERT INTO messages (chat_room_id, user_id, message, sent_at) VALUES (?, ?, ?, ?)';
+  const query = 'INSERT INTO messages (chat_room_id, user_id, message, sent_at, is_read) VALUES (?, ?, ?, ?, false)';
   connection.query(query, [chat_room_id, user_id, message, sentAt], (err, results) => {
     if (err) {
       return res.status(500).send('Server error');
@@ -274,6 +274,32 @@ app.post('/send-message', authenticateJWT, (req, res) => {
     const sentMessage = { chat_room_id, user_id, message, sent_at: sentAt };
     io.to(chat_room_id).emit('new_message', sentMessage);
     res.status(201).json(sentMessage);
+  });
+});
+
+app.post('/mark-messages-read', authenticateJWT, (req, res) => {
+  const { chat_room_id, user_id } = req.body;
+  if (!chat_room_id || !user_id) {
+    return res.status(400).send('Chat room ID and user ID are required');
+  }
+
+  const query = 'update messages set is_read = true where chat_room_id = ? and user_id != ? and is_read = false';
+  connection.query(query, [chat_room_id, user_id], (err, results) => {
+    if (err) {
+      return res.status(500).send('Server error');
+    }
+    res.status(200).send('Messages marked as read');
+  });
+});
+
+app.get('/unread-messages', authenticateJWT, (req, res) => {
+  const userId = req.user.id;
+  const query = 'select messages.user_id, count(*) as unread_count from messages join userchatrooms on messages.chat_room_id = userchatrooms.chat_room_id where userchatrooms.user_id = ? and messages.user_id != ? and messages.is_read = false group by messages.user_id';
+  connection.query(query, [userId, userId], (err, results) => {
+    if (err) {
+      return res.status(500).send('Server error');
+    }
+    res.status(200).json(results);
   });
 });
 
