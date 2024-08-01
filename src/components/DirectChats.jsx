@@ -7,6 +7,7 @@ import Profile from './Profile';
 
 const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
   const [users, setUsers] = useState([]);
+  const [searchResults, setSearchResults] = useState([]);
   const [chatRoomId, setChatRoomId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState('');
@@ -34,7 +35,7 @@ const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
       socket.current.emit('joinRoom', chatRoomId);
       console.log('Joined room:', chatRoomId);
 
-      socket.current.on('New_message', (msg) => {
+      const handleMessage = (msg) => {
         console.log('New message received:', msg);
         if (msg.chat_room_id === chatRoomId) {
           setMessages((prevMessages) => [...prevMessages, msg]);
@@ -43,10 +44,12 @@ const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
         else {
           fetchUnreadCounts();
         }
-      });
+      };
+
+      socket.current.on('New_message', handleMessage);
 
       return () => {
-        socket.current.off('New_message');
+        socket.current.off('New_message', handleMessage);
       };
     }
   }, [chatRoomId])
@@ -161,18 +164,32 @@ const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
         <Profile token={token} currentUser={currentUser} onProfileUpdate={onProfileUpdate} />
       ) : (
         <>
-          <UserSearch token={token} onUserSelected={startChat} />
+          <UserSearch token={token} onUserSelected={(user) => { setSearchResults([user]); startChat(user); }} />
           <div className="users-list">
             <h3>Direct Chats</h3>
-            {users.map((user) => (
-              <div key={user.id}>
-                <span onClick={() => startChat(user)}>{user.username}
-                  {unreadCounts[user.id] && (
-                    <span className='unread-count'> ({unreadCounts[user.id]})</span>
-                  )}
-                </span>
-              </div>
-            ))}
+            {searchResults.length > 0 ? (
+              searchResults.map((user) => (
+                <div key={user.id}>
+                  <span onClick={() => startChat(user)}>
+                    {user.username}
+                    {unreadCounts[user.id] && (
+                      <span className='unread-count'> ({unreadCounts[user.id]})</span>
+                    )}
+                  </span>
+                </div>
+              ))
+            ) : (
+              users.map((user) => (
+                <div key={user.id}>
+                  <span onClick={() => startChat(user)}>
+                    {user.username}
+                    {unreadCounts[user.id] && (
+                      <span className='unread-count'> ({unreadCounts[user.id]})</span>
+                    )}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
           {selectedUser && (
             <div className="chat-room">
@@ -180,7 +197,7 @@ const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
               <div className="messages-list">
                 {messages.map((msg, index) => (
                   <div key={`${msg.user_id}-${msg.sent_at}-${index}`}>
-                    <img src={msg.avatar || './uploads/default-avatar.png'} alt="Avatar" width="40" />
+                    <img src={msg.avatar || '../uploads/default-avatar.png'} alt="Avatar" width="40" />
                     <strong>{msg.username}:</strong> {msg.message}
                     <br />
                     <small>{convertToLocaleTime(msg.sent_at)}</small>
