@@ -436,6 +436,89 @@ app.get('/direct-chats', authenticateJWT, (req, res) => {
   });
 });
 
+app.get('/notifications', authenticateJWT, (req, res) => {
+  const userId = req.user.id;
+
+  const query = `select distinct u.id, u.username, u.avatar from users u join messages m on u.id = m.user_id where m.chat_room_id in (select chat_room_id from userchatrooms where user_id = ?) and u.id != ? and not exists (select 1 from messages m2 where m2.chat_room_id = m.chat_room_id and m2.user_id = ?)`;
+  connection.query(query, [userId, userId, userId], (err, results) => {
+    if (err) {
+      console.error('Error fetching notification: ', err);
+      return res.status(500).send('Server error');
+    }
+    res.status(200).json(results);
+  });
+});
+
+app.post('/accept-user', authenticateJWT, (req, res) => {
+  const { user_id } = req.body;
+  const current_user_id = req.user.id;
+
+  const checkRoomQuery = `select chat_room_id from userchatrooms where chat_room_id in ( select chat_room_id from userchatrooms where user_id = ?) and user_id = ?`;
+  connection.query(checkRoomQuery, [current_user_id, user_id], (err, results) => {
+    if (err) {
+      console.error('Error fetching exisiting chat rooms: ', err);
+      return res.status(500).send('Server error');
+    }
+    if (results.length > 0) {
+      return res.status(200).json({ chat_room_id: results[0].chat_room_id });
+    }
+
+    const chat_room_id = Math.floor(Math.random() * 1000000);
+    const chat_room_name = `Chat Room ${chat_room_id}`;
+
+    connection.beginTransaction((err) => {
+      if (err) {
+        console.error('Error starting transaction: ', err);
+        return res.status(500).send('Server error');
+      }
+
+      const insertRoomQuery = 'insert into chatrooms (id, name) values (?, ?)';
+      connection.query(insertRoomQuery, [chat_room_id, chat_room_name], (err) => {
+        if (err) {
+          return connection.rollback(() => {
+            console.error('Error inserting chat room: ', err);
+            return res.status(500).send('Server error');
+          });
+        }
+
+        const insertUserChatroomQuery = 'insert into userchatrooms (chat_room_id, user_id) values (?, ?)';
+        connection.query(insertUserChatroomQuery, [chat_room_id, current_user_id, chat_room_id, user_id], (err) => {
+          if (err) {
+            return connection.rollback(() => {
+              console.error('Error inserting user chat rooms: ', err);
+              return res.status(500).send('Server error');
+            });
+          }
+
+          connection.commit((err) => {
+            if (err) {
+              return connection.rollback(() => {
+                console.error('Error commiting transaction: ', err);
+                return res.status(500).send('Server error');
+              });
+            }
+            return res.status(201).json({ chat_room_id });
+          });
+        });
+      });
+    });
+  });
+});
+
+app.post('/decline-user', authenticateJWT, (req, res) => {
+  const { user_id } = req.body;
+  const current_user_id = req.user.id;
+
+  const insertSpamQuery = 'insert into spam_users (user_id, spam_user_id) values (?, ?)';
+  connection.query(insertSpamQuery, [current_user_id, user_id], (err) => {
+    if (err) {
+      console.error('Error inserting spam users: ', err);
+      return res.status(500).send('Server error');
+    }
+    return res.status(200).send('User moved to spam');
+  });
+});
+
 io.on('connection', (socket) => {
   console.log('A user connected');
 

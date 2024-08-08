@@ -4,6 +4,7 @@ import { io } from 'socket.io-client';
 import axios from 'axios';
 import UserSearch from './UserSearch';
 import Profile from './Profile';
+import Notification from './Notification';
 
 const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
   const [users, setUsers] = useState([]);
@@ -158,13 +159,27 @@ const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
     setIsProfileVisible(!isProfileVisible);
   };
 
+  const handleUserAccepted = (userId) => {
+    const user = searchResults.find((user) => user.id === userId);
+    if (user) {
+      setUsers((prevUsers) => [...prevUsers, user]);
+      setSearchResults((prevResults) => prevResults.filter(user => user.id !== userId));
+    }
+  };
+
+  const handleUserDeclined = (userId) => {
+    setSearchResults((prevResults) => prevResults.filter(user => user.id !== userId));
+  };
+
   return (
     <div className="direct-chats-container">
       {isProfileVisible ? (
         <Profile token={token} currentUser={currentUser} onProfileUpdate={onProfileUpdate} />
       ) : (
         <>
+          <Notification token={token} onUserAccepted={handleUserAccepted} onUserDeclined={handleUserDeclined} />
           <UserSearch token={token} onUserSelected={(user) => { setSearchResults([user]); startChat(user); }} />
+
           <div className="users-list">
             <h3>Direct Chats</h3>
             {searchResults.length > 0 ? (
