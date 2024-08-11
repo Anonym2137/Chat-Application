@@ -169,6 +169,7 @@ const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
 
   const handleUserDeclined = (userId) => {
     setSearchResults((prevResults) => prevResults.filter(user => user.id !== userId));
+    setUsers((prevUsers) => prevUsers.filter(user => user.id !== userId));
   };
 
   return (

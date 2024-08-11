@@ -43,6 +43,7 @@ function Notification({ token, onUserAccepted, onUserDeclined }) {
   };
 
   const handleDecline = async (userId) => {
+    setLoading(true);
     try {
       await axios.post('http://localhost:3000/decline-user', { user_id: userId }, {
         headers: { Authorization: `Bearer ${token}` }

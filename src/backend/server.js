@@ -439,8 +439,30 @@ app.get('/direct-chats', authenticateJWT, (req, res) => {
 app.get('/notifications', authenticateJWT, (req, res) => {
   const userId = req.user.id;
 
-  const query = `select distinct u.id, u.username, u.avatar from users u join messages m on u.id = m.user_id where m.chat_room_id in (select chat_room_id from userchatrooms where user_id = ?) and u.id != ? and not exists (select 1 from messages m2 where m2.chat_room_id = m.chat_room_id and m2.user_id = ?)`;
-  connection.query(query, [userId, userId, userId], (err, results) => {
+  const query = `SELECT DISTINCT u.id, u.username, u.avatar 
+FROM users u 
+JOIN messages m ON u.id = m.user_id 
+WHERE m.chat_room_id IN (
+  SELECT chat_room_id 
+  FROM userchatrooms 
+  WHERE user_id = ?
+) 
+AND u.id != ? 
+AND u.id NOT IN (
+  SELECT spam_user_id 
+  FROM spam_users 
+  WHERE user_id = ?
+) 
+AND u.id NOT IN (
+  SELECT user_id 
+  FROM userchatrooms 
+  WHERE chat_room_id IN (
+    SELECT chat_room_id 
+    FROM userchatrooms 
+    WHERE user_id = ?
+  )
+)`;
+  connection.query(query, [userId, userId, userId, userId], (err, results) => {
     if (err) {
       console.error('Error fetching notification: ', err);
       return res.status(500).send('Server error');
@@ -453,52 +475,41 @@ app.post('/accept-user', authenticateJWT, (req, res) => {
   const { user_id } = req.body;
   const current_user_id = req.user.id;
 
-  const checkRoomQuery = `select chat_room_id from userchatrooms where chat_room_id in ( select chat_room_id from userchatrooms where user_id = ?) and user_id = ?`;
-  connection.query(checkRoomQuery, [current_user_id, user_id], (err, results) => {
+  const chat_room_id = Math.floor(Math.random() * 1000000);
+  const chat_room_name = `Chat Room ${chat_room_id}`;
+
+  connection.beginTransaction((err) => {
     if (err) {
-      console.error('Error fetching exisiting chat rooms: ', err);
+      console.error('Error starting transaction: ', err);
       return res.status(500).send('Server error');
     }
-    if (results.length > 0) {
-      return res.status(200).json({ chat_room_id: results[0].chat_room_id });
-    }
 
-    const chat_room_id = Math.floor(Math.random() * 1000000);
-    const chat_room_name = `Chat Room ${chat_room_id}`;
-
-    connection.beginTransaction((err) => {
+    const insertRoomQuery = 'insert into chatrooms (id, name) values (?, ?)';
+    connection.query(insertRoomQuery, [chat_room_id, chat_room_name], (err) => {
       if (err) {
-        console.error('Error starting transaction: ', err);
-        return res.status(500).send('Server error');
+        return connection.rollback(() => {
+          console.error('Error inserting chat room: ', err);
+          return res.status(500).send('Server error');
+        });
       }
 
-      const insertRoomQuery = 'insert into chatrooms (id, name) values (?, ?)';
-      connection.query(insertRoomQuery, [chat_room_id, chat_room_name], (err) => {
+      const insertUserChatroomQuery = 'insert into userchatrooms (chat_room_id, user_id) values (?, ?)';
+      connection.query(insertUserChatroomQuery, [chat_room_id, current_user_id, chat_room_id, user_id], (err) => {
         if (err) {
           return connection.rollback(() => {
-            console.error('Error inserting chat room: ', err);
+            console.error('Error inserting user chat rooms: ', err);
             return res.status(500).send('Server error');
           });
         }
 
-        const insertUserChatroomQuery = 'insert into userchatrooms (chat_room_id, user_id) values (?, ?)';
-        connection.query(insertUserChatroomQuery, [chat_room_id, current_user_id, chat_room_id, user_id], (err) => {
+        connection.commit((err) => {
           if (err) {
             return connection.rollback(() => {
-              console.error('Error inserting user chat rooms: ', err);
+              console.error('Error commiting transaction: ', err);
               return res.status(500).send('Server error');
             });
           }
-
-          connection.commit((err) => {
-            if (err) {
-              return connection.rollback(() => {
-                console.error('Error commiting transaction: ', err);
-                return res.status(500).send('Server error');
-              });
-            }
-            return res.status(201).json({ chat_room_id });
-          });
+          return res.status(201).json({ chat_room_id });
         });
       });
     });
