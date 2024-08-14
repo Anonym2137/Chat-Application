@@ -13,6 +13,7 @@ function Notification({ token, onUserAccepted, onUserDeclined }) {
           headers: { Authorization: `Bearer ${token}` }
         });
         setNotifications(response.data);
+        console.log(response.data)
       }
       catch (err) {
         console.error('Error fetching notifications: ', err.response ? err.response.data : err.message);
@@ -20,7 +21,7 @@ function Notification({ token, onUserAccepted, onUserDeclined }) {
     };
     fetchNotifications();
 
-    const intervalId = setInterval(fetchNotifications, 1800000);
+    const intervalId = setInterval(fetchNotifications, 60000);
 
     return () => clearInterval(intervalId);
   }, [token]);

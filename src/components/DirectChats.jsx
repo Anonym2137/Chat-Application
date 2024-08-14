@@ -163,13 +163,12 @@ const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
     const user = searchResults.find((user) => user.id === userId);
     if (user) {
       setUsers((prevUsers) => [...prevUsers, user]);
-      setSearchResults((prevResults) => prevResults.filter(user => user.id !== userId));
+      setSearchResults((prevResults) => prevResults.filter((u) => u.id !== userId));
     }
   };
 
   const handleUserDeclined = (userId) => {
-    setSearchResults((prevResults) => prevResults.filter(user => user.id !== userId));
-    setUsers((prevUsers) => prevUsers.filter(user => user.id !== userId));
+    setSearchResults((prevResults) => prevResults.filter((user) => user.id !== userId));
   };
 
   return (

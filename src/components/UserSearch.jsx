@@ -9,6 +9,10 @@ function UserSearch({ token, onUserSelected, }) {
 
   const handleSearch = async (e) => {
     e.preventDefault();
+    if (!searchQuery.trim()) {
+      setError('Please enter a search query');
+      return;
+    }
     try {
       const response = await axios.get('http://localhost:3000/search-users', { headers: { Authorization: `Bearer ${token}` }, params: { query: searchQuery } });
       setUsers(response.data);
@@ -24,7 +28,7 @@ function UserSearch({ token, onUserSelected, }) {
     <div className="user-search-container">
       <h2>Search users</h2>
       <form onSubmit={handleSearch}>
-        <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search for users ..." />
+        <input type="text" value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); if (error) { setError(null) } }} placeholder="Search for users ..." />
         <button type="submit">Search</button>
       </form>
       {error && <p className="error">{error}</p>}
