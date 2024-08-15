@@ -206,10 +206,10 @@ app.post('/mark-messages-read', authenticateJWT, (req, res) => {
   if (!chat_room_id || !user_id) {
     return res.status(400).send('Chat room ID and user ID are required');
   }
-
   const query = 'update messages set is_read = true where chat_room_id = ? and user_id != ? and is_read = false';
   connection.query(query, [chat_room_id, user_id], (err, results) => {
     if (err) {
+      console.log('Error updating messages: ', err);
       return res.status(500).send('Server error');
     }
     res.status(200).send('Messages marked as read');
@@ -318,13 +318,13 @@ app.post('/create-user-chatroom', authenticateJWT, (req, res) => {
       return res.status(403).json({ error: 'User is marked as spam' });
     }
 
-    const checkAcceptanceQuery = `select count(*) as isAccepted from userchatrooms where chat_room_id in (select chat_room_id from userchatrooms where user_id = ?) and user_id = ?`;
+    const checkAcceptanceQuery = `select uc.chat_room_id from userchatrooms uc join userchatrooms uc2 on uc.chat_room_id = uc2.chat_room_id where uc.user_id = ? and uc2.user_id = ?`;
     connection.query(checkAcceptanceQuery, [current_user_id, user_id], (err, results) => {
       if (err) {
         console.error('Error checking acceptance status: ', err);
         return res.status(500).json({ error: 'Server error' });
       }
-      if (results[0].isAccepted > 0) {
+      if (results.length > 0) {
         return res.status(200).json({ chat_room_id: results[0].chat_room_id })
       }
       const chat_room_id = Math.floor(Math.random() * 1000000);
@@ -369,7 +369,6 @@ app.post('/create-user-chatroom', authenticateJWT, (req, res) => {
     });
   })
 });
-
 
 app.get('/user-messages/:chat_room_id', authenticateJWT, (req, res) => {
   const { chat_room_id } = req.params;
@@ -430,23 +429,8 @@ app.get('/direct-chats', authenticateJWT, (req, res) => {
 app.get('/notifications', authenticateJWT, (req, res) => {
   const userId = req.user.id;
 
-  const notificationQuery = `
-    SELECT DISTINCT u.id, u.username, u.avatar 
-    FROM users u 
-    JOIN messages m ON u.id = m.user_id 
-    WHERE m.chat_room_id NOT IN (
-      SELECT chat_room_id 
-      FROM userchatrooms 
-      WHERE user_id = ?
-    ) 
-    AND u.id != ? 
-    AND u.id NOT IN (
-      SELECT spam_user_id 
-      FROM spam_users 
-      WHERE user_id = ?
-    )
-  `;
-  connection.query(notificationQuery, [userId, userId, userId], (err, results) => {
+  const notificationQuery = `SELECT DISTINCT u.id, u.username, u.avatar FROM users u JOIN messages m ON u.id = m.user_id WHERE m.chat_room_id NOT IN (SELECT chat_room_id FROM userchatrooms WHERE user_id = ?) AND u.id != ? AND u.id NOT IN (SELECT spam_user_id FROM spam_users WHERE user_id = ?) AND u.id IN (SELECT user_id FROM userchatrooms WHERE chat_room_id IN (SELECT chat_room_id FROM messages WHERE user_id = ?))`;
+  connection.query(notificationQuery, [userId, userId, userId, userId], (err, results) => {
     if (err) {
       console.error('Error fetching notifications: ', err);
       return res.status(500).send('Server error');

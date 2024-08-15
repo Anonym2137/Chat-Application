@@ -119,8 +119,9 @@ const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
 
   const markMessagesAsRead = async (chat_room_id) => {
     try {
+      console.log(chat_room_id)
       await axios.post('http://localhost:3000/mark-messages-read', {
-        chat_room_id,
+        chat_room_id: chat_room_id,
         user_id: currentUser.id
       }, {
         headers: { Authorization: `Bearer ${token}` }
