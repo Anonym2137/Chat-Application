@@ -5,6 +5,7 @@ import axios from 'axios';
 import UserSearch from './UserSearch';
 import Profile from './Profile';
 import Notification from './Notification';
+import Spam from './Spam';
 
 const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
   const [users, setUsers] = useState([]);
@@ -15,6 +16,7 @@ const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [isProfileVisible, setIsProfileVisible] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState({});
+  const [viewingSpam, setViewingSpam] = useState(false);
   const socket = useRef(null);
 
   useEffect(() => {
@@ -89,6 +91,7 @@ const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
 
   const startChat = async (user) => {
     setSelectedUser(user);
+    setViewingSpam(false);
     try {
       const response = await axios.post(
         'http://localhost:3000/create-user-chatroom',
@@ -119,7 +122,6 @@ const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
 
   const markMessagesAsRead = async (chat_room_id) => {
     try {
-      console.log(chat_room_id)
       await axios.post('http://localhost:3000/mark-messages-read', {
         chat_room_id: chat_room_id,
         user_id: currentUser.id
@@ -172,6 +174,12 @@ const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
     setSearchResults((prevResults) => prevResults.filter((user) => user.id !== userId));
   };
 
+  const handleSpamChatSelected = (chatRoomId) => {
+    setChatRoomId(chatRoomId);
+    fetchMessages(chatRoomId);
+    setViewingSpam(true);
+  };
+
   return (
     <div className="direct-chats-container">
       {isProfileVisible ? (
@@ -180,9 +188,10 @@ const DirectChats = ({ token, currentUser, onProfileUpdate }) => {
         <>
           <Notification token={token} onUserAccepted={handleUserAccepted} onUserDeclined={handleUserDeclined} />
           <UserSearch token={token} onUserSelected={(user) => { setSearchResults([user]); startChat(user); }} />
+          <Spam token={token} onSpamChatsSelected={handleSpamChatSelected} />
 
           <div className="users-list">
-            <h3>Direct Chats</h3>
+            <h3>{viewingSpam ? 'Spam Chats' : 'Direct Chats'}</h3>
             {searchResults.length > 0 ? (
               searchResults.map((user) => (
                 <div key={user.id}>

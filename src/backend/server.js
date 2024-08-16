@@ -511,6 +511,19 @@ app.post('/decline-user', authenticateJWT, (req, res) => {
   });
 });
 
+app.get('/spam-chats', authenticateJWT, (req, res) => {
+  const userId = req.user.id;
+
+  const query = `select u.id, u.username, u.avatar, uc.chat_room_id from users u join spam_users su on u.id = su.spam_user_id join userchatrooms uc on su.spam_user_id = uc.user_id where su.user_id = ? and uc.chat_room_id in (select chat_room_id from userchatrooms where user_id = ?)`;
+  connection.query(query, [userId, userId], (err, results) => {
+    if (err) {
+      console.error('Error fetching spam chats: ', err);
+      return res.status(500).send('Server error');
+    }
+    res.status(200).json(results);
+  });
+});
+
 io.on('connection', (socket) => {
   console.log('A user connected');
 
