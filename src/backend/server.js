@@ -13,7 +13,6 @@ import { format } from 'date-fns';
 import { sendPasswordResetEmail } from './email.js';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
-import { connect } from 'http2';
 
 dotenv.config();
 
@@ -25,24 +24,26 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true,
 }));
 app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
+// Serve uploads from the project root uploads folder
+app.use('/uploads', express.static(path.join(__dirname, '../../uploads')))
 
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: 'http://localhost:5173',
+    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'],
     methods: ['GET', 'POST']
   }
 });
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/');
+    // Save uploads to the project root uploads folder
+    cb(null, path.join(__dirname, '../../uploads'));
   },
   filename: (req, file, cb) => {
     cb(null, `${Date.now()}-${file.originalname}`);
@@ -135,21 +136,6 @@ app.post('/login', async (req, res) => {
   }
 });
 
-app.put('/profile', authenticateJWT, (req, res) => {
-  const { id, name, surname } = req.body;
-  if (!id || !name || !surname) {
-    return res.status(400).send('All fields are required');
-  }
-
-  const query = 'UPDATE users SET name = ?, surname = ? WHERE id = ?';
-  connection.query(query, [name, surname, id], (err, results) => {
-    if (err) {
-      return res.status(500).send('Server error');
-    }
-    res.send('Profile updated successfully');
-  });
-});
-
 app.post('/reset-password', async (req, res) => {
   const { email } = req.body;
 
@@ -227,16 +213,6 @@ app.get('/unread-messages', authenticateJWT, (req, res) => {
   });
 });
 
-app.get('/chat-history/:chat_room_id', authenticateJWT, (req, res) => {
-  const { chat_room_id } = req.params;
-  const query = 'SELECT * FROM messages WHERE chat_room_id = ? ORDER BY sent_at ASC';
-  connection.query(query, [chat_room_id], (err, results) => {
-    if (err) {
-      return res.status(500).send('Server error');
-    }
-    res.status(200).json(results);
-  });
-});
 
 app.post('/refresh-token', (req, res) => {
   const { token } = req.body;
@@ -521,6 +497,27 @@ app.get('/spam-chats', authenticateJWT, (req, res) => {
       return res.status(500).send('Server error');
     }
     res.status(200).json(results);
+  });
+});
+
+app.post('/unspam', authenticateJWT, (req, res) => {
+  const { user_id } = req.body;
+  const current_user_id = req.user.id;
+
+  if (!user_id) {
+    return res.status(400).send('User ID is required');
+  }
+
+  const deleteSpamQuery = 'DELETE FROM spam_users WHERE user_id = ? AND spam_user_id = ?';
+  connection.query(deleteSpamQuery, [current_user_id, user_id], (err, results) => {
+    if (err) {
+      console.error('Error removing user from spam: ', err);
+      return res.status(500).send('Server error');
+    }
+    if (results.affectedRows === 0) {
+      return res.status(404).send('User not found in spam list');
+    }
+    return res.status(200).send('User removed from spam');
   });
 });
 
