@@ -1,41 +1,45 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+/**
+ * Notification Component
+ * Displays incoming chat requests from other users
+ */
+import React, { useEffect, useState, useCallback } from 'react';
 import PropTypes from 'prop-types';
+import { notificationApi } from '../services/api';
+import { getAssetUrl } from '../config/api';
 import { Button } from './ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from './ui/avatar';
 import { Card, CardContent } from './ui/card';
+import { getInitials } from '../utils/formatters';
 
-function Notification({ token, onUserAccepted, onUserDeclined }) {
+const REFRESH_INTERVAL = 60000; // 1 minute
+
+const Notification = ({ token, onUserAccepted, onUserDeclined }) => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      try {
-        const response = await axios.get('http://localhost:3000/notifications', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setNotifications(response.data);
-      } catch (err) {
-        console.error('Error fetching notifications: ', err.response ? err.response.data : err.message);
-      }
-    };
-    fetchNotifications();
-
-    const intervalId = setInterval(fetchNotifications, 60000);
-    return () => clearInterval(intervalId);
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const data = await notificationApi.getNotifications(token);
+      setNotifications(data);
+    } catch (err) {
+      console.error('Error fetching notifications');
+    }
   }, [token]);
+
+  useEffect(() => {
+    fetchNotifications();
+    const intervalId = setInterval(fetchNotifications, REFRESH_INTERVAL);
+    return () => clearInterval(intervalId);
+  }, [fetchNotifications]);
 
   const handleAccept = async (userId) => {
     setLoading(true);
     try {
-      await axios.post('http://localhost:3000/accept-user', { user_id: userId }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await notificationApi.acceptUser(userId, token);
       onUserAccepted(userId);
-      setNotifications(notifications.filter(user => user.id !== userId));
+      setNotifications((prev) => prev.filter((user) => user.id !== userId));
     } catch (err) {
-      console.error('Error accepting user: ', err.response ? err.response.data : err.message);
+      console.error('Error accepting user');
     } finally {
       setLoading(false);
     }
@@ -44,13 +48,11 @@ function Notification({ token, onUserAccepted, onUserDeclined }) {
   const handleDecline = async (userId) => {
     setLoading(true);
     try {
-      await axios.post('http://localhost:3000/decline-user', { user_id: userId }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await notificationApi.declineUser(userId, token);
       onUserDeclined(userId);
-      setNotifications(notifications.filter(user => user.id !== userId));
+      setNotifications((prev) => prev.filter((user) => user.id !== userId));
     } catch (err) {
-      console.error('Error declining user: ', err.response ? err.response.data : err.message);
+      console.error('Error declining user');
     } finally {
       setLoading(false);
     }
@@ -61,16 +63,19 @@ function Notification({ token, onUserAccepted, onUserDeclined }) {
       <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
         Message Requests
       </h3>
+
       {notifications.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-4">No new requests</p>
+        <p className="text-sm text-muted-foreground text-center py-4">
+          No new requests
+        </p>
       ) : (
         notifications.map((user) => (
           <Card key={user.id} className="bg-background/50">
             <CardContent className="p-3">
               <div className="flex items-center gap-3">
                 <Avatar className="h-10 w-10">
-                  <AvatarImage src={user.avatar ? `http://localhost:3000${user.avatar}` : undefined} />
-                  <AvatarFallback>{user.username?.[0]?.toUpperCase() || '?'}</AvatarFallback>
+                  <AvatarImage src={getAssetUrl(user.avatar)} />
+                  <AvatarFallback>{getInitials(user)}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <p className="font-medium truncate">{user.username}</p>
@@ -102,7 +107,7 @@ function Notification({ token, onUserAccepted, onUserDeclined }) {
       )}
     </div>
   );
-}
+};
 
 Notification.propTypes = {
   token: PropTypes.string.isRequired,

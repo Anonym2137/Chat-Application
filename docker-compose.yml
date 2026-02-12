@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  db:
+    image: mysql:latest
+    container_name: chat_app_db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${VITE_API_DB_PASSWORD}
+      MYSQL_DATABASE: chat_app
+    ports:
+      - "3306:3306"
+    volumes:
+      - chat_app_db_data:/var/lib/mysql
+      - ./init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chat_network
+
+  # Node.js Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: chat_app_backend
+    environment:
+      NODE_ENV: production
+      VITE_API_PORT: 3000
+      VITE_API_JWT_SECRET: ${VITE_API_JWT_SECRET}
+      VITE_API_DB_HOST: db
+      VITE_API_DB_USER: ${VITE_API_DB_USER:-root}
+      VITE_API_DB_PASSWORD: ${VITE_API_DB_PASSWORD}
+      VITE_API_DB_NAME: chat_app
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - chat_network
+
+  # React Frontend (Production)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: chat_app_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - chat_network
+
+volumes:
+  chat_app_db_data:
+
+
+networks:
+  chat_network:
+    driver: bridge

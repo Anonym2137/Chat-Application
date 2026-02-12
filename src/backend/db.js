@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const connection = mysql.createConnection({
-  host: process.env.VITE_API__DB_HOST,
+  host: process.env.VITE_API_DB_HOST || 'localhost',
   user: process.env.VITE_API_DB_USER,
   password: process.env.VITE_API_DB_PASSWORD,
   database: process.env.VITE_API_DB_NAME

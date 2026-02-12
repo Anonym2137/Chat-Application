@@ -1,48 +1,62 @@
-import React, { useState, useEffect } from "react";
+/**
+ * Profile Component
+ * View and edit user's own profile
+ */
+import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import axios from "axios";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "./ui/card";
-import { Alert, AlertDescription } from "./ui/alert";
-import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
-import { Separator } from "./ui/separator";
+import { userApi } from '../services/api';
+import { getAssetUrl } from '../config/api';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card';
+import { Alert, AlertDescription } from './ui/alert';
+import { Avatar, AvatarImage, AvatarFallback } from './ui/avatar';
+import { Separator } from './ui/separator';
+import { ArrowLeftIcon, CameraIcon } from './ui/icons';
+import { Spinner } from './ui/shared';
+import { getInitials } from '../utils/formatters';
 
 const Profile = ({ token, currentUser, onProfileUpdate, onBack }) => {
-  const [username, setUsername] = useState(currentUser.username);
-  const [password, setPassword] = useState('');
-  const [email, setEmail] = useState(currentUser.email);
-  const [name, setName] = useState(currentUser.name);
-  const [surname, setSurname] = useState(currentUser.surname);
-  const [note, setNote] = useState('');
+  const [formData, setFormData] = useState({
+    username: currentUser.username || '',
+    password: '',
+    email: currentUser.email || '',
+    name: currentUser.name || '',
+    surname: currentUser.surname || '',
+    note: '',
+  });
   const [avatar, setAvatar] = useState(null);
   const [preview, setPreview] = useState(currentUser.avatar || '');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchUserProfile = async () => {
-      try {
-        const response = await axios.get(`http://localhost:3000/profile/${currentUser.id}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const { username, email, name, surname, note, avatar } = response.data;
-        setUsername(username);
-        setEmail(email);
-        setName(name);
-        setSurname(surname);
-        setNote(note || '');
-        setPreview(avatar || '');
-      } catch (err) {
-        console.error('Error fetching profile: ', err.response ? err.response.data : err.message);
-        setError('Error fetching profile information');
-      }
-    };
-
-    fetchUserProfile();
+  const fetchUserProfile = useCallback(async () => {
+    try {
+      const data = await userApi.getProfile(currentUser.id, token);
+      setFormData({
+        username: data.username || '',
+        password: '',
+        email: data.email || '',
+        name: data.name || '',
+        surname: data.surname || '',
+        note: data.note || '',
+      });
+      setPreview(data.avatar || '');
+    } catch (err) {
+      setError('Error fetching profile information');
+    }
   }, [token, currentUser.id]);
+
+  useEffect(() => {
+    fetchUserProfile();
+  }, [fetchUserProfile]);
+
+  const handleChange = (e) => {
+    const { id, value } = e.target;
+    setFormData((prev) => ({ ...prev, [id]: value }));
+  };
 
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
@@ -50,30 +64,24 @@ const Profile = ({ token, currentUser, onProfileUpdate, onBack }) => {
     setError('');
     setSuccess('');
 
-    const formData = new FormData();
-    formData.append('id', currentUser.id);
-    formData.append('username', username);
-    formData.append('password', password);
-    formData.append('email', email);
-    formData.append('name', name);
-    formData.append('surname', surname);
-    formData.append('note', note);
+    const submitData = new FormData();
+    submitData.append('id', currentUser.id);
+    Object.entries(formData).forEach(([key, value]) => {
+      submitData.append(key, value);
+    });
     if (avatar) {
-      formData.append('avatar', avatar);
+      submitData.append('avatar', avatar);
     }
 
     try {
-      const response = await axios.put('http://localhost:3000/update-profile', formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      const response = await userApi.updateProfile(submitData, token);
       setSuccess('Profile updated successfully');
-      onProfileUpdate({ username, email, name, surname, note, avatar: response.data.avatar });
-      setPassword('');
+      onProfileUpdate({
+        ...formData,
+        avatar: response.avatar,
+      });
+      setFormData((prev) => ({ ...prev, password: '' }));
     } catch (err) {
-      console.error('Error updating profile: ', err.response ? err.response.data : err.message);
       setError('Error updating profile information');
     } finally {
       setLoading(false);
@@ -88,19 +96,17 @@ const Profile = ({ token, currentUser, onProfileUpdate, onBack }) => {
     }
   };
 
-  const getInitials = () => {
-    const first = name?.[0] || '';
-    const last = surname?.[0] || '';
-    return (first + last).toUpperCase() || username?.[0]?.toUpperCase() || '?';
-  };
+  const userInitials = getInitials({ ...formData, username: formData.username });
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-3 md:p-4">
       <div className="max-w-2xl mx-auto">
-        <Button variant="ghost" onClick={onBack} className="mb-3 md:mb-4 text-muted-foreground hover:text-foreground">
-          <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
+        <Button
+          variant="ghost"
+          onClick={onBack}
+          className="mb-3 md:mb-4 text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeftIcon className="h-4 w-4 mr-2" />
           Back to Chats
         </Button>
 
@@ -109,19 +115,27 @@ const Profile = ({ token, currentUser, onProfileUpdate, onBack }) => {
             <div className="flex flex-col items-center">
               <div className="relative group mb-4">
                 <Avatar className="h-20 w-20 md:h-24 md:w-24 border-4 border-primary/20">
-                  <AvatarImage src={preview ? `http://localhost:3000${preview}` : undefined} />
-                  <AvatarFallback className="text-xl md:text-2xl bg-primary/10">{getInitials()}</AvatarFallback>
+                  <AvatarImage
+                    src={preview.startsWith('blob:') ? preview : getAssetUrl(preview)}
+                  />
+                  <AvatarFallback className="text-xl md:text-2xl bg-primary/10">
+                    {userInitials}
+                  </AvatarFallback>
                 </Avatar>
                 <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                  <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <input type="file" className="hidden" onChange={handleFileChange} accept="image/*" />
+                  <CameraIcon className="h-6 w-6 text-white" />
+                  <input
+                    type="file"
+                    className="hidden"
+                    onChange={handleFileChange}
+                    accept="image/*"
+                  />
                 </label>
               </div>
-              <CardTitle className="text-xl md:text-2xl font-bold">{name} {surname}</CardTitle>
-              <CardDescription>@{username}</CardDescription>
+              <CardTitle className="text-xl md:text-2xl font-bold">
+                {formData.name} {formData.surname}
+              </CardTitle>
+              <CardDescription>@{formData.username}</CardDescription>
             </div>
           </CardHeader>
 
@@ -146,8 +160,8 @@ const Profile = ({ token, currentUser, onProfileUpdate, onBack }) => {
                   <Input
                     id="name"
                     type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    value={formData.name}
+                    onChange={handleChange}
                     required
                     className="bg-background/50"
                   />
@@ -157,8 +171,8 @@ const Profile = ({ token, currentUser, onProfileUpdate, onBack }) => {
                   <Input
                     id="surname"
                     type="text"
-                    value={surname}
-                    onChange={(e) => setSurname(e.target.value)}
+                    value={formData.surname}
+                    onChange={handleChange}
                     required
                     className="bg-background/50"
                   />
@@ -170,8 +184,8 @@ const Profile = ({ token, currentUser, onProfileUpdate, onBack }) => {
                 <Input
                   id="username"
                   type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  value={formData.username}
+                  onChange={handleChange}
                   required
                   className="bg-background/50"
                 />
@@ -182,8 +196,8 @@ const Profile = ({ token, currentUser, onProfileUpdate, onBack }) => {
                 <Input
                   id="email"
                   type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  value={formData.email}
+                  onChange={handleChange}
                   required
                   className="bg-background/50"
                 />
@@ -194,8 +208,8 @@ const Profile = ({ token, currentUser, onProfileUpdate, onBack }) => {
                 <Input
                   id="password"
                   type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  value={formData.password}
+                  onChange={handleChange}
                   placeholder="Leave blank to keep current"
                   className="bg-background/50"
                 />
@@ -205,15 +219,22 @@ const Profile = ({ token, currentUser, onProfileUpdate, onBack }) => {
                 <Label htmlFor="note">Bio</Label>
                 <textarea
                   id="note"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
+                  value={formData.note}
+                  onChange={handleChange}
                   placeholder="Write something about yourself..."
                   className="flex min-h-[80px] w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </div>
 
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Saving...' : 'Save Changes'}
+                {loading ? (
+                  <>
+                    <Spinner className="h-4 w-4 mr-2" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Changes'
+                )}
               </Button>
             </form>
           </CardContent>

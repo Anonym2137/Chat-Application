@@ -17,15 +17,31 @@ import crypto from 'crypto';
 dotenv.config();
 
 const app = express();
-const port = process.env.VITE_API_PORT || 3000;
+const port = process.env.PORT || 3000;
 const jwtSecret = process.env.VITE_API_JWT_SECRET;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// In production, we need to allow the frontend domain
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:3000',
+  process.env.FRONTEND_URL // Add this var in Render dashboard (e.g. https://your-app.vercel.app)
+].filter(Boolean);
+
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    // For development convenience, you might want to log blocked origins
+    console.log('Blocked by CORS:', origin);
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
 }));
 app.use(express.json());
@@ -35,7 +51,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../../uploads')))
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'],
+    origin: allowedOrigins,
     methods: ['GET', 'POST']
   }
 });
