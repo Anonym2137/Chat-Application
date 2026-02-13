@@ -1,7 +1,3 @@
-/**
- * Profile Component
- * View and edit user's own profile
- */
 import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { userApi } from '../services/api';

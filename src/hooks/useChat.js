@@ -1,7 +1,3 @@
-/**
- * Custom hook for managing chat functionality
- * Handles socket connection, messages, and chat room operations
- */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { SOCKET_URL } from '../config/api';

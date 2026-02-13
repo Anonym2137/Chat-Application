@@ -1,7 +1,3 @@
-/**
- * Notification Component
- * Displays incoming chat requests from other users
- */
 import React, { useEffect, useState, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { notificationApi } from '../services/api';

@@ -1,7 +1,3 @@
-/**
- * ResetPassword Component
- * Password reset request and update forms
- */
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { useLocation, Link } from 'react-router-dom';

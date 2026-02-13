@@ -1,7 +1,3 @@
-/**
- * UserProfileView Component
- * Modal view for viewing another user's profile with block functionality
- */
 import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { userApi, notificationApi } from '../services/api';

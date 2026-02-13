@@ -1,7 +1,3 @@
-/**
- * Spam Component
- * View and manage blocked/spam users
- */
 import React, { useEffect, useState, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { spamApi, chatApi } from '../services/api';

@@ -1,7 +1,3 @@
-/**
- * UserSearch Component
- * Search and select users to start a chat
- */
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { userApi } from '../services/api';
